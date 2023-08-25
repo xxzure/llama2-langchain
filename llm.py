@@ -5,6 +5,7 @@ from langchain.llms.base import LLM
 from langchain.llms.utils import enforce_stop_tokens
 from langchain.prompts import PromptTemplate
 from langchain.chains import RetrievalQA
+from langchain.memory import ChatMessageHistory
 from typing import Dict, List, Optional
 from config import llm_model
 
@@ -13,7 +14,7 @@ class Llm(LLM):
     max_token: int = 10000
     temperature: float = 0.1
     top_p = 0.9
-    history = []
+    history = ChatMessageHistory()
     tokenizer: object = None
     model: object = None
     client: object = None
@@ -28,6 +29,7 @@ class Llm(LLM):
         return "ChatLLM"
 
     def _call(self, prompt, stop: Optional[List[str]] = None) -> str:
+        self.history.add_user_message(prompt)
         payload = {
             "inputs": prompt,
             "parameters": {"max_new_tokens": self.max_token, "top_p": self.top_p, "temperature": self.temperature}
@@ -45,7 +47,7 @@ class Llm(LLM):
 
         if stop is not None:
             response = enforce_stop_tokens(response, stop)
-        self.history = self.history + [[None, response]]
+        self.history.add_ai_message(response)
 
         return response
 

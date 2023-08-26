@@ -16,10 +16,9 @@ def predict(input,
         top_k=top_k,
         history_len=history_len,
         temperature=temperature,
-        top_p=top_p,
-        history=history)
+        top_p=top_p)
 
-    history.append((input, resp['result']))
+    history.append((input, resp))
     return '', history, history
 
 

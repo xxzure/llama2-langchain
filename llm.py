@@ -1,16 +1,11 @@
 import boto3
 import json
 import vector_store
-from langchain.llms.base import LLM
-from langchain.llms.utils import enforce_stop_tokens
-from langchain.prompts import PromptTemplate
-from langchain.chains import RetrievalQA
-from langchain.memory import ChatMessageHistory
 from typing import Dict, List, Optional
 from config import llm_model
 
 
-class Llm(LLM):
+class Llm():
     max_token: int = 10000
     temperature: float = 0.1
     top_p = 0.9
@@ -20,16 +15,10 @@ class Llm(LLM):
     client: object = None
 
     def __init__(self):
-        super().__init__()
         self.client = boto3.client(
             "sagemaker-runtime", region_name="us-east-1")
 
-    @property
-    def _llm_type(self) -> str:
-        return "ChatLLM"
-
-    def _call(self, prompt, stop: Optional[List[str]] = None) -> str:
-        self.history.add_user_message(prompt)
+    def _call(self, prompt) -> str:
         payload = {
             "inputs": prompt,
             "parameters": {"max_new_tokens": self.max_token, "top_p": self.top_p, "temperature": self.temperature}
@@ -45,10 +34,6 @@ class Llm(LLM):
         response = json.loads(response)
         response = response[0]['generation']['content']
 
-        if stop is not None:
-            response = enforce_stop_tokens(response, stop)
-        self.history.add_ai_message(response)
-
         return response
 
 
@@ -56,6 +41,7 @@ def llm_status():
     try:
         llm = Llm()
         llm._call([[{"role": "user", "content": "hello"}]])
+        llm.history = []
         return """The initial model has loaded successfully and you can start a conversation"""
     except Exception as e:
         print(e)
@@ -66,44 +52,43 @@ llm = Llm()
 vector_store = vector_store.get_vector_store("./data/advertising.json")
 
 
-def build_llama2_prompt(messages):
-    startPrompt = "<s>[INST] "
-    endPrompt = " [/INST]"
-    conversation = []
-    for index, message in enumerate(messages):
-        if message["role"] == "system" and index == 0:
-            conversation.append(f"<<SYS>>\n{message['content']}\n<</SYS>>\n\n")
-        elif message["role"] == "user":
-            conversation.append(message["content"].strip())
-        else:
-            conversation.append(
-                f" [/INST] {message['content'].strip()}</s><s>[INST] ")
-
-    return startPrompt + "".join(conversation) + endPrompt
+def build_llama2_prompt(system, user, history, history_len):
+    messages = [system]
+    length = len(history)
+    if length > history_len:
+        length = history_len
+    for combined_message in history[-length:]:
+        for message in combined_message:
+            messages.append(message)
+    messages.append(user)
+    return [messages]
 
 
-def get_knowledge_based_answer(query, top_k: int = 10, history_len: int = 3, temperature: float = 0.01, top_p: float = 0.1, history=[]):
+def get_knowledge_based_answer(query, top_k: int = 10, history_len: int = 3, temperature: float = 0.01, top_p: float = 0.1):
 
     llm.temperature = temperature
     llm.top_p = top_p
 
-    prompt_template = """
-    {"role": "system", "content": "You are a helpful, respectful and honest assistant. Always answer as helpfully as possible, while being safe. There are some json about advertising content, based on these information, answer the user's questions concisely and professionally. If you can't get an answer from it, say 'The question cannot be answered based on known information' or 'Not enough relevant information is provided'."}
-    {history}
-    {"role": "user", "content":"Known content:{context}. Question:{question}"}"""
-    prompt = PromptTemplate(template=prompt_template,
-                            input_variables=["history", "context", "question"])
-    llm.history = history[-history_len:] if history_len > 0 else []
+    system_prompt = {"role": "system", "content": "You are a helpful, respectful and honest assistant. There are some content about advertising, please answer the user's questions concisely and professionally. If you can't get an answer from it, return user 'The question cannot be answered based on known information' or 'Not enough relevant information is provided'."}
 
-    knowledge_chain = RetrievalQA.from_llm(
-        llm=llm,
-        retriever=vector_store.as_retriever(
-            search_kwargs={"k": top_k}),
-        prompt=prompt)
-    knowledge_chain.combine_documents_chain.document_prompt = PromptTemplate(
-        input_variables=["page_content"], template="{page_content}")
+    retriever = vector_store.as_retriever(search_kwargs={"k": top_k})
+    document_list = retriever.get_relevant_documents(query)
+    context = ""
+    i = 1
+    for doc in document_list:
+        context += doc.page_content
+        if i != len(document_list):
+            context += ","
+        i = i + 1
+    user_prompt = {"role": "user",
+                   "content": f"Known content: {context}.\nQuestion:{query}"}
+    prompt = build_llama2_prompt(
+        system_prompt, user_prompt, llm.history, history_len)
+    response = llm._call(prompt)
+    print(response)
+    ai_prompt = {"role": "assistant", "content": response}
+    llm.history.append([user_prompt, ai_prompt])
+    return response
 
-    knowledge_chain.return_source_documents = True
 
-    result = knowledge_chain({"query": query})
-    return result
+get_knowledge_based_answer("hello")

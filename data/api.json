@@ -1,0 +1,26 @@
+[
+    {
+        "apiId": 1,
+        "apiName": "Update Child Video Group Relations",
+        "apiDescription": "This method uses PUT to update video group relations.",
+        "apiWebLink": "https://api-docs.freewheel.tv/publisher/reference/update-child-video-group-relation",
+        "Request": "PUT https://api.freewheel.tv/services/v4/videos/{video_id}/child_video_groups",
+        "Response": "200 OK"
+    },
+    {
+        "apiId": 2,
+        "apiName": "Add Child Video Groups Relations",
+        "apiDescription": "This method uses PUT to add child video groups relations.",
+        "apiWebLink": "https://api-docs.freewheel.tv/publisher/reference/add-child-video-groups-relations",
+        "Request": "PUT https://api.freewheel.tv/services/v4/video_groups/{video_group_id}/child_video_groups/{video_group_id}",
+        "Response": "200 OK"
+    },
+    {
+        "apiId": 3,
+        "apiName": "Remove Child Video Groups Relations",
+        "apiDescription": "This method uses DELETE to remove video group relations.",
+        "apiWebLink": "https://api-docs.freewheel.tv/publisher/reference/remove-child-video-groups-relations",
+        "Request": "DELETE https://api.freewheel.tv/services/v4/video_groups/{video_group_id}/child_video_groups/{video_group_id}",
+        "Response": "200 OK"
+    }
+]

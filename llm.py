@@ -9,7 +9,7 @@ class Llm():
     max_token: int = 10000
     temperature: float = 0.1
     top_p = 0.9
-    history = []
+    history = ChatMessageHistory()
     tokenizer: object = None
     model: object = None
     client: object = None
